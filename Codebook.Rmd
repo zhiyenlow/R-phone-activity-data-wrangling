@@ -1,0 +1,92 @@
+---
+title: "Data Wrangling Project"
+author: "Zhi-Yen Low"
+date: "21 August 2015"
+output: html_document
+---
+
+First, start by loading all the data into R:
+
+```{r eval = FALSE}
+x_train <- read.table('x_train.txt')
+y_train <- read.table('y_train.txt')
+sub_train <- read.table("subject_train.txt")
+x_test <- read.table('x_test.txt')
+y_test <- read.table('y_test.txt')
+sub_test <- read.table('subject_test.txt')
+activity <- read.table("activity_labels.txt")
+features <- read.table("features.txt")
+```
+
+Next, clean up the column names: 
+
+Each of the columns in the x_test and x_train datasets match the features in the features dataset. 
+
+```{r eval = FALSE}
+colnames(x_train) <- features[, 2]
+colnames(x_test) <- features[, 2]
+```
+
+We also should name the columns in order to make them easier to join together. For example, naming the datasets with "subjects" and "activity labels" help us identify the common columns in the dataset, which we will use to join various datasets together.
+
+```{r eval = FALSE}
+names(y_train)[1] <- "act_num"
+names(y_test)[1] <- "act_num"
+names(activity) <- c("act_num", "act_label")
+names(sub_train) <- "subject"
+names(sub_test) <- "subject"
+```
+
+Since some of these datasets do not have common columns on which we can join them, we can create "dummy" variables to join them together. 
+
+```{r eval = FALSE}
+sub_train$dummy <- seq(1, 7352, by = 1)
+x_train$dummy <- seq(1, 7352, by = 1)
+y_train$dummy <- seq(1, 7352, by = 1)
+
+sub_test$dummy <- seq(1, 2947, by = 1)
+x_test$dummy <- seq(1, 2947, by = 1)
+y_test$dummy <- seq(1, 2947, by = 1)
+```
+
+Now that we have created column columns, we can proceed to join the sets! We will also remove the "dummy" variable after. Notice that the training and test datasets are joined together using the rbind function, because we are merging them vertically (merging all rows together), giving us a total of 10299 observations over 564 variables.
+
+```{r eval = FALSE}
+# Joining training set together
+train1 <- inner_join(sub_train, y_train, by = "dummy")
+train1 <- inner_join(train1, x_train, by = "dummy")
+train1 <- inner_join(activity, train1, by = "act_num")
+
+# Joining test set together
+test1 <- inner_join(sub_test, y_test, by = "dummy")
+test1 <- inner_join(test1, x_test, by = "dummy")
+test1 <- inner_join(activity, test1, by = "act_num")
+
+#Joining training and test sets together vertically and removing "dummy" variable
+total1 <- rbind(train1, test1)
+total1$dummy <- NULL
+```
+
+Now, we want to extract only the columns that identify the subject, activity type, mean, and standard deviation of each activity:
+
+```{r eval = FALSE}
+# Making column names a valid string, and then extracting mean and standard deviation values
+
+valid_column_names <- make.names(names=names(total1), unique=TRUE, allow_ = TRUE)
+names(total1) <- valid_column_names
+
+total_extract <- select(.data = total1, 
+                       act_num, act_label, subject, 
+                       contains("mean"), contains("std"))
+```
+
+This leaves us with a tidy data set of 89 variables. 
+
+Now, we want to summarize our data with the average of each variable for each subject and activity. Then, we save the tidy dataset as "summary.txt".
+
+```{r eval = FALSE}
+total_extract_sum <- total_extract %>% group_by(act_label, subject) %>% summarise_each(funs(mean))
+write.table(total_extract_sum, "summary.txt", sep="\t")
+```
+
+This code gives us 180 observations of 89 variables, which suggests that the summarize function worked, because there are 6 activities x 30 subjects. 
